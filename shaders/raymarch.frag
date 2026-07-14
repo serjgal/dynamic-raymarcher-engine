@@ -15,9 +15,11 @@ layout(std140) uniform WorldData {
 
 uniform vec2 u_resolution;
 uniform vec3 u_camera_pos;
+// NEW: Camera orientation vectors
+uniform vec3 u_camera_front;
+uniform vec3 u_camera_up;
+uniform vec3 u_camera_right;
 
-// Define the Anti-Aliasing grid size (2 = 4 rays per pixel, 3 = 9 rays per pixel)
-// Higher numbers look smoother but cost more GPU power
 #define AA 2
 
 float map(vec3 p, out vec3 hit_color) {
@@ -48,21 +50,20 @@ float map(vec3 p, out vec3 hit_color) {
 void main() {
     vec3 total_color = vec3(0.0);
 
-    // The sub-pixel sampling loop
     for (int m = 0; m < AA; m++) {
         for (int n = 0; n < AA; n++) {
             
-            // Calculate a fractional offset for the ray
             vec2 offset = vec2(float(m), float(n)) / float(AA) - 0.5;
             vec2 uv = (gl_FragCoord.xy + offset - 0.5 * u_resolution.xy) / u_resolution.y;
 
             vec3 ro = u_camera_pos; 
-            vec3 rd = normalize(vec3(uv.x, uv.y, 1.0)); 
+            
+            // NEW: Construct the ray direction using the camera's local axes
+            vec3 rd = normalize(uv.x * u_camera_right + uv.y * u_camera_up + 1.0 * u_camera_front); 
 
             float t = 0.0; 
             vec3 col = vec3(0.05, 0.05, 0.1); 
 
-            // Raymarching loop (Increased to 256 iterations to fix the black edge pixels)
             for (int i = 0; i < 256; i++) {
                 vec3 p = ro + rd * t;
                 vec3 obj_color;
@@ -78,13 +79,10 @@ void main() {
                 t += d;
             }
             
-            // Add this ray's color to the total bucket
             total_color += col;
         }
     }
 
-    // Average out the accumulated color samples
     total_color /= float(AA * AA);
-
     FragColor = vec4(total_color, 1.0);
 }

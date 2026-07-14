@@ -9,3 +9,6 @@ raymarcher
 # IDE and Language Server files
 .vscode/
 compile_flags.txt
+
+# AI
+gemini.md

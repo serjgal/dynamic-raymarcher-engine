@@ -29,7 +29,7 @@ Most procedural shaders hardcode shapes into the GLSL math. This project extract
 ### Compiling and Running
 ```bash
 # Clone the repository
-git clone https://github.com/serjgal/dynamic-raymarcher-engine.git
+git clone https://github.com/yourusername/dynamic-raymarcher.git
 cd dynamic-raymarcher
 
 # Build the project
@@ -40,15 +40,12 @@ make
 ```
 
 ### Controls
+*   **[W, A, S, D]**: Move Forward, Left, Backward, and Right
+*   **[Q, E]**: Descend and Ascend along the world Y-axis
+*   **[Mouse]**: Look around (Pitch and Yaw)
 *   **[SPACE]**: Spawn a random procedurally generated sphere into the world instantly.
+*   **[ESC]**: Release mouse capture and exit the engine
 *   *(Expandable via the C event loop to include full camera movement and UI integration)*.
-
-## Future Roadmap & Enhancements
-
-*   **Constructive Solid Geometry (CSG):** Implementing boolean operations (union, subtraction, intersection) by adding operation flags to the UBO structs.
-*   **Performance Diagnostics:** Adding a heatmap heuristic that visualizes iteration counts per-pixel, allowing for spatial optimization debugging.
-*   **Spatial Partitioning:** Integrating a Bounding Volume Hierarchy (BVH) in the C-controller to cull distant objects before uploading to the GPU buffer, vastly increasing the maximum object limit.
-*   **Lighting & Shading:** Deriving surface normals mathematically via gradient sampling to implement directional lighting and soft shadows.
 
 ---
 *Developed by Serj Galstyan as a technical exploration of low-level graphics programming and systems architecture.*
