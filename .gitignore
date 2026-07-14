@@ -1,0 +1,11 @@
+# Build artifacts
+*.o
+*.out
+raymarcher
+
+# macOS specific
+.DS_Store
+
+# IDE and Language Server files
+.vscode/
+compile_flags.txt
