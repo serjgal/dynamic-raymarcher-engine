@@ -85,7 +85,8 @@ int main(void) {
   WorldData world = {0};
 
   // --- Construct Initial Scene ---
-  // Object 0: Floor Plane
+
+  // Object 0: Floor Plane (Group 0)
   world.objects[0].pos_type[0] = 0.0f;
   world.objects[0].pos_type[1] = -1.0f;
   world.objects[0].pos_type[2] = 0.0f;
@@ -94,8 +95,9 @@ int main(void) {
   world.objects[0].color_extra[0] = 0.2f;
   world.objects[0].color_extra[1] = 0.8f;
   world.objects[0].color_extra[2] = 0.2f;
+  world.objects[0].color_extra[3] = 0.0f; // GROUP 0
 
-  // Object 1: Rotated Box (Base for CSG)
+  // Object 1: Rotated Box (Group 1)
   world.objects[1].pos_type[0] = 0.0f;
   world.objects[1].pos_type[1] = 1.0f;
   world.objects[1].pos_type[2] = 5.0f;
@@ -110,8 +112,10 @@ int main(void) {
   world.objects[1].color_extra[0] = 0.8f;
   world.objects[1].color_extra[1] = 0.2f;
   world.objects[1].color_extra[2] = 0.2f;
+  world.objects[1].color_extra[3] = 1.0f; // GROUP 1
 
-  // Object 2: Subtracted Sphere (CSG Boolean Subtraction)
+  // Object 2: Subtracted Sphere (Group 1)
+  // Cuts into the Box (since both are in Group 1)
   world.objects[2].pos_type[0] = 1.0f;
   world.objects[2].pos_type[1] = 2.0f;
   world.objects[2].pos_type[2] = 4.0f;
@@ -121,19 +125,23 @@ int main(void) {
   world.objects[2].color_extra[0] = 0.2f;
   world.objects[2].color_extra[1] = 0.2f;
   world.objects[2].color_extra[2] = 0.8f;
+  world.objects[2].color_extra[3] = 1.0f; // GROUP 1
 
-  // Object 3: Floating Torus
-  world.objects[3].pos_type[0] = -4.0f;
-  world.objects[3].pos_type[1] = 2.0f;
+  // Object 3: Torus (Group 2)
+  // Floating cleanly right through the Box, totally unaffected by Group 1's
+  // subtraction!
+  world.objects[3].pos_type[0] = 0.0f;
+  world.objects[3].pos_type[1] = 1.0f;
   world.objects[3].pos_type[2] = 5.0f;
   world.objects[3].pos_type[3] = 3.0f; // Torus Type
   world.objects[3].rot_op[0] = 1.5f;   // Pitch
   world.objects[3].rot_op[3] = 0.0f;   // Union
-  world.objects[3].params[0] = 1.0f;   // Main Radius
-  world.objects[3].params[1] = 0.3f;   // Tube Radius
+  world.objects[3].params[0] = 2.0f;   // Main Radius
+  world.objects[3].params[1] = 0.2f;   // Tube Radius
   world.objects[3].color_extra[0] = 0.8f;
   world.objects[3].color_extra[1] = 0.8f;
   world.objects[3].color_extra[2] = 0.2f;
+  world.objects[3].color_extra[3] = 2.0f; // GROUP 2
 
   world.object_count = 4;
 
@@ -154,7 +162,7 @@ int main(void) {
   glBindVertexArray(vao);
 
   // --- Camera State ---
-  float cam_pos[3] = {0.0f, 0.0f, 0.0f};
+  float cam_pos[3] = {0.0f, 1.0f, 0.0f};
   float cam_front[3] = {0.0f, 0.0f, 1.0f};
   float cam_up[3] = {0.0f, 1.0f, 0.0f};
   float cam_right[3] = {1.0f, 0.0f, 0.0f};
@@ -191,13 +199,13 @@ int main(void) {
           world.objects[i].pos_type[0] = ((rand() % 100) / 10.0f) - 5.0f;
           world.objects[i].pos_type[1] = ((rand() % 50) / 10.0f);
           world.objects[i].pos_type[2] = 3.0f + ((rand() % 50) / 10.0f);
-          world.objects[i].pos_type[3] = rand() % 15; // Random Shape 0 to 14
+          world.objects[i].pos_type[3] = rand() % 15; // Random Shape
 
           world.objects[i].rot_op[0] = (rand() % 314) / 100.0f;
           world.objects[i].rot_op[1] = (rand() % 314) / 100.0f;
           world.objects[i].rot_op[2] = (rand() % 314) / 100.0f;
           world.objects[i].rot_op[3] =
-              (rand() % 10) > 8 ? 1.0f : 0.0f; // 10% chance to be a subtractor
+              (rand() % 10) > 8 ? 1.0f : 0.0f; // Subtraction chance
 
           world.objects[i].params[0] = 0.5f + ((rand() % 20) / 10.0f);
           world.objects[i].params[1] = 0.5f + ((rand() % 20) / 10.0f);
@@ -207,6 +215,8 @@ int main(void) {
           world.objects[i].color_extra[0] = (rand() % 100) / 100.0f;
           world.objects[i].color_extra[1] = (rand() % 100) / 100.0f;
           world.objects[i].color_extra[2] = (rand() % 100) / 100.0f;
+          world.objects[i].color_extra[3] =
+              (float)(rand() % 3 + 1); // Spawns in Groups 1, 2, or 3
 
           world.object_count++;
 
@@ -215,7 +225,6 @@ int main(void) {
         }
       }
 
-      // Mouse Look
       if (event.type == SDL_EVENT_MOUSE_MOTION) {
         yaw += event.motion.xrel * mouse_sensitivity;
         pitch -= event.motion.yrel * mouse_sensitivity;
