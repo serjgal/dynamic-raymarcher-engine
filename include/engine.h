@@ -11,17 +11,21 @@
 
 /*
  * SceneObject perfectly matches the GLSL std140 layout.
- * Designed with vec4 memory blocks (float[4]) to guarantee GPU alignment
- * and allow future expansion (e.g., using 'w' components for CSG operations).
+ * Expanded to 64 bytes (4 vec4s) to support complex shapes,
+ * arbitrary rotations, and CSG boolean operations.
  */
 typedef struct {
-  float position_radius[4]; // x, y, z, w (radius/size)
-  float color_type[4];      // r, g, b, w (shape type ID)
+  float pos_type[4]; // x, y, z (Position), w (Shape Type ID)
+  float rot_op[4];   // x, y, z (Euler Rotation in radians), w (CSG Op: 0=Union,
+                     // 1=Sub, 2=Int)
+  float params[4];   // x, y, z (Main dimensions e.g. Extents/Radii), w (Extra
+                     // param e.g. Roundness/Thickness)
+  float color_extra[4]; // r, g, b (Color), w (Unused/Material ID)
 } SceneObject;
 
 /*
  * The master UBO payload.
- * Padded explicitly to 16-byte boundaries.
+ * Padded explicitly to 16-byte boundaries for strict std140 alignment.
  */
 typedef struct {
   int object_count;

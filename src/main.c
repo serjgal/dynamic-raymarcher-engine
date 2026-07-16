@@ -83,22 +83,59 @@ int main(void) {
   glLinkProgram(shaderProgram);
 
   WorldData world = {0};
-  world.object_count = 2;
 
-  world.objects[0].position_radius[1] = -1.0f;
-  world.objects[0].color_type[0] = 0.2f;
-  world.objects[0].color_type[1] = 0.8f;
-  world.objects[0].color_type[2] = 0.2f;
-  world.objects[0].color_type[3] = 1.0f;
+  // --- Construct Initial Scene ---
+  // Object 0: Floor Plane
+  world.objects[0].pos_type[0] = 0.0f;
+  world.objects[0].pos_type[1] = -1.0f;
+  world.objects[0].pos_type[2] = 0.0f;
+  world.objects[0].pos_type[3] = 8.0f; // Plane Type
+  world.objects[0].rot_op[3] = 0.0f;   // Union
+  world.objects[0].color_extra[0] = 0.2f;
+  world.objects[0].color_extra[1] = 0.8f;
+  world.objects[0].color_extra[2] = 0.2f;
 
-  world.objects[1].position_radius[0] = 0.0f;
-  world.objects[1].position_radius[1] = 0.0f;
-  world.objects[1].position_radius[2] = 5.0f;
-  world.objects[1].position_radius[3] = 1.0f;
-  world.objects[1].color_type[0] = 0.8f;
-  world.objects[1].color_type[1] = 0.2f;
-  world.objects[1].color_type[2] = 0.2f;
-  world.objects[1].color_type[3] = 0.0f;
+  // Object 1: Rotated Box (Base for CSG)
+  world.objects[1].pos_type[0] = 0.0f;
+  world.objects[1].pos_type[1] = 1.0f;
+  world.objects[1].pos_type[2] = 5.0f;
+  world.objects[1].pos_type[3] = 2.0f; // Round Box Type
+  world.objects[1].rot_op[0] = 0.5f;   // Pitch
+  world.objects[1].rot_op[1] = 0.5f;   // Yaw
+  world.objects[1].rot_op[3] = 0.0f;   // Union
+  world.objects[1].params[0] = 1.5f;
+  world.objects[1].params[1] = 1.5f;
+  world.objects[1].params[2] = 1.5f; // Extents
+  world.objects[1].params[3] = 0.2f; // Roundness
+  world.objects[1].color_extra[0] = 0.8f;
+  world.objects[1].color_extra[1] = 0.2f;
+  world.objects[1].color_extra[2] = 0.2f;
+
+  // Object 2: Subtracted Sphere (CSG Boolean Subtraction)
+  world.objects[2].pos_type[0] = 1.0f;
+  world.objects[2].pos_type[1] = 2.0f;
+  world.objects[2].pos_type[2] = 4.0f;
+  world.objects[2].pos_type[3] = 0.0f; // Sphere Type
+  world.objects[2].rot_op[3] = 1.0f;   // SUBTRACT Operation
+  world.objects[2].params[0] = 1.8f;   // Radius
+  world.objects[2].color_extra[0] = 0.2f;
+  world.objects[2].color_extra[1] = 0.2f;
+  world.objects[2].color_extra[2] = 0.8f;
+
+  // Object 3: Floating Torus
+  world.objects[3].pos_type[0] = -4.0f;
+  world.objects[3].pos_type[1] = 2.0f;
+  world.objects[3].pos_type[2] = 5.0f;
+  world.objects[3].pos_type[3] = 3.0f; // Torus Type
+  world.objects[3].rot_op[0] = 1.5f;   // Pitch
+  world.objects[3].rot_op[3] = 0.0f;   // Union
+  world.objects[3].params[0] = 1.0f;   // Main Radius
+  world.objects[3].params[1] = 0.3f;   // Tube Radius
+  world.objects[3].color_extra[0] = 0.8f;
+  world.objects[3].color_extra[1] = 0.8f;
+  world.objects[3].color_extra[2] = 0.2f;
+
+  world.object_count = 4;
 
   GLuint ubo;
   glGenBuffers(1, &ubo);
@@ -123,19 +160,17 @@ int main(void) {
   float cam_right[3] = {1.0f, 0.0f, 0.0f};
   float world_up[3] = {0.0f, 1.0f, 0.0f};
 
-  float yaw = 90.0f; // 90 degrees faces +Z in our setup
+  float yaw = 90.0f;
   float pitch = 0.0f;
   float cam_speed = 5.0f;
   float mouse_sensitivity = 0.1f;
 
-  // Lock the mouse to the window for FPS controls
   SDL_SetWindowRelativeMouseMode(window, true);
 
   Uint64 last_time = SDL_GetTicks();
   bool running = true;
 
   while (running) {
-    // Delta Time Calculation
     Uint64 current_time = SDL_GetTicks();
     float dt = (current_time - last_time) / 1000.0f;
     last_time = current_time;
@@ -146,20 +181,33 @@ int main(void) {
         running = false;
 
       if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE) {
-        running = false; // ESC to quit easily since mouse is locked
+        running = false;
       }
 
       if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_SPACE) {
         if (world.object_count < 100) {
           int i = world.object_count;
-          world.objects[i].position_radius[0] = ((rand() % 100) / 10.0f) - 5.0f;
-          world.objects[i].position_radius[1] = ((rand() % 50) / 10.0f);
-          world.objects[i].position_radius[2] = 3.0f + ((rand() % 50) / 10.0f);
-          world.objects[i].position_radius[3] = 0.5f;
-          world.objects[i].color_type[0] = (rand() % 100) / 100.0f;
-          world.objects[i].color_type[1] = (rand() % 100) / 100.0f;
-          world.objects[i].color_type[2] = (rand() % 100) / 100.0f;
-          world.objects[i].color_type[3] = 0.0f;
+
+          world.objects[i].pos_type[0] = ((rand() % 100) / 10.0f) - 5.0f;
+          world.objects[i].pos_type[1] = ((rand() % 50) / 10.0f);
+          world.objects[i].pos_type[2] = 3.0f + ((rand() % 50) / 10.0f);
+          world.objects[i].pos_type[3] = rand() % 15; // Random Shape 0 to 14
+
+          world.objects[i].rot_op[0] = (rand() % 314) / 100.0f;
+          world.objects[i].rot_op[1] = (rand() % 314) / 100.0f;
+          world.objects[i].rot_op[2] = (rand() % 314) / 100.0f;
+          world.objects[i].rot_op[3] =
+              (rand() % 10) > 8 ? 1.0f : 0.0f; // 10% chance to be a subtractor
+
+          world.objects[i].params[0] = 0.5f + ((rand() % 20) / 10.0f);
+          world.objects[i].params[1] = 0.5f + ((rand() % 20) / 10.0f);
+          world.objects[i].params[2] = 0.5f + ((rand() % 20) / 10.0f);
+          world.objects[i].params[3] = 0.1f + ((rand() % 10) / 10.0f);
+
+          world.objects[i].color_extra[0] = (rand() % 100) / 100.0f;
+          world.objects[i].color_extra[1] = (rand() % 100) / 100.0f;
+          world.objects[i].color_extra[2] = (rand() % 100) / 100.0f;
+
           world.object_count++;
 
           glBindBuffer(GL_UNIFORM_BUFFER, ubo);
@@ -171,8 +219,6 @@ int main(void) {
       if (event.type == SDL_EVENT_MOUSE_MOTION) {
         yaw += event.motion.xrel * mouse_sensitivity;
         pitch -= event.motion.yrel * mouse_sensitivity;
-
-        // Constrain pitch to avoid screen flipping
         if (pitch > 89.0f)
           pitch = 89.0f;
         if (pitch < -89.0f)
@@ -180,7 +226,6 @@ int main(void) {
       }
     }
 
-    // --- Calculate New Camera Vectors ---
     float rad_yaw = yaw * M_PI / 180.0f;
     float rad_pitch = pitch * M_PI / 180.0f;
 
@@ -195,7 +240,6 @@ int main(void) {
     cross(cam_right, cam_front, cam_up);
     normalize(cam_up);
 
-    // --- Keyboard Movement (Smooth continuous input) ---
     const bool *state = SDL_GetKeyboardState(NULL);
     float velocity = cam_speed * dt;
 
@@ -219,12 +263,10 @@ int main(void) {
       cam_pos[1] += cam_right[1] * velocity;
       cam_pos[2] += cam_right[2] * velocity;
     }
-    if (state[SDL_SCANCODE_E]) { // Ascend
+    if (state[SDL_SCANCODE_E])
       cam_pos[1] += velocity;
-    }
-    if (state[SDL_SCANCODE_Q]) { // Descend
+    if (state[SDL_SCANCODE_Q])
       cam_pos[1] -= velocity;
-    }
 
     int w, h;
     SDL_GetWindowSize(window, &w, &h);
