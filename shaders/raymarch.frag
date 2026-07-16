@@ -22,9 +22,9 @@ uniform vec3 u_camera_up;
 uniform vec3 u_camera_right;
 
 #define AA 2
+#define MAX_GROUPS 4
 
 // --- Helper: Space Transformation ---
-// Applies inverse Euler rotations around an object's position origin
 vec3 getLocalSpace(vec3 p, SceneObject obj) {
     vec3 pos = obj.pos_type.xyz;
     vec3 rot = obj.rot_op.xyz;
@@ -40,30 +40,25 @@ vec3 getLocalSpace(vec3 p, SceneObject obj) {
 
 // --- Shape-Specific SDF Functions ---
 
-// 0: Sphere
 float sdfSphere(vec3 p_local, SceneObject obj) {
     return length(p_local) - obj.params.x;
 }
 
-// 1: Box
 float sdfBox(vec3 p_local, SceneObject obj) {
     vec3 q = abs(p_local) - obj.params.xyz;
     return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
 }
 
-// 2: Round Box
 float sdfRoundBox(vec3 p_local, SceneObject obj) {
     vec3 q = abs(p_local) - obj.params.xyz;
     return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - obj.params.w;
 }
 
-// 3: Torus
 float sdfTorus(vec3 p_local, SceneObject obj) {
     vec2 q = vec2(length(p_local.xz) - obj.params.x, p_local.y);
     return length(q) - obj.params.y;
 }
 
-// 4: Capped Torus
 float sdfCappedTorus(vec3 p_local, SceneObject obj) {
     vec2 sc = vec2(sin(obj.params.z), cos(obj.params.z));
     vec3 p = p_local;
@@ -72,29 +67,24 @@ float sdfCappedTorus(vec3 p_local, SceneObject obj) {
     return sqrt(dot(p, p) + obj.params.x * obj.params.x - 2.0 * obj.params.x * k) - obj.params.y;
 }
 
-// 5: Link
 float sdfLink(vec3 p_local, SceneObject obj) {
     vec3 q = vec3(p_local.x, max(abs(p_local.y) - obj.params.x, 0.0), p_local.z);
     return length(vec2(length(q.xy) - obj.params.y, q.z)) - obj.params.z;
 }
 
-// 6: Infinite Cylinder
 float sdfCylinderInfinite(vec3 p_local, SceneObject obj) {
     return length(p_local.xz) - obj.params.x;
 }
 
-// 7: Capped Cylinder
 float sdfCylinderCapped(vec3 p_local, SceneObject obj) {
     vec2 d = abs(vec2(length(p_local.xz), p_local.y)) - vec2(obj.params.x, obj.params.y);
     return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
-// 8: Plane
 float sdfPlane(vec3 p_local, SceneObject obj) {
     return p_local.y;
 }
 
-// 9: Hexagonal Prism
 float sdfHexPrism(vec3 p_local, SceneObject obj) {
     vec3 q = abs(p_local);
     const vec3 k = vec3(-0.8660254, 0.5, 0.57735026);
@@ -103,20 +93,17 @@ float sdfHexPrism(vec3 p_local, SceneObject obj) {
     return min(max(d2.x, d2.y), 0.0) + length(max(d2, 0.0));
 }
 
-// 10: Capsule / Line
 float sdfCapsule(vec3 p_local, SceneObject obj) {
     vec3 q = p_local;
     q.y -= clamp(q.y, -obj.params.y, obj.params.y);
     return length(q) - obj.params.x;
 }
 
-// 11: Rounded Cylinder
 float sdfCylinderRounded(vec3 p_local, SceneObject obj) {
     vec2 d2 = vec2(length(p_local.xz) - obj.params.x + obj.params.z, abs(p_local.y) - obj.params.y);
     return min(max(d2.x, d2.y), 0.0) + length(max(d2, 0.0)) - obj.params.z;
 }
 
-// 12: Cut Hollow Sphere
 float sdfCutHollowSphere(vec3 p_local, SceneObject obj) {
     vec2 q = vec2(length(p_local.xz), p_local.y);
     float w = sqrt(obj.params.x * obj.params.x - obj.params.y * obj.params.y);
@@ -148,7 +135,6 @@ float sdfPyramid(vec3 p_local, SceneObject obj) {
     return sqrt((d2 + k.z * k.z) / m2) * sign(max(k.z, -q.y));
 }
 
-// Evaluates the individual SDF dynamically based on its structural type ID
 float evaluateSDF(int type, vec3 p_local, SceneObject obj) {
     switch (type) {
         case 0:  return sdfSphere(p_local, obj);
@@ -170,36 +156,58 @@ float evaluateSDF(int type, vec3 p_local, SceneObject obj) {
     return 10000.0;
 }
 
-// Maps the world using CSG Boolean operations
+// Maps the world using Multi-Pass Group-Isolated CSG Operations
 float map(vec3 p, out vec3 hit_color) {
-    float min_dist = 10000.0;
+    float global_min_dist = 10000.0;
     hit_color = vec3(0.0);
 
-    for (int i = 0; i < object_count; i++) {
-        vec3 p_local = getLocalSpace(p, objects[i]);
-        int type = int(objects[i].pos_type.w);
-        int op = int(objects[i].rot_op.w);
-        
-        float d = evaluateSDF(type, p_local, objects[i]);
-        
-        if (i == 0 || op == 0) { // UNION
-            if (d < min_dist) {
-                min_dist = d;
-                hit_color = objects[i].color_extra.rgb;
+    // Loop through each isolated operation group
+    for (int g = 0; g < MAX_GROUPS; g++) {
+        float group_dist = 10000.0;
+        vec3 group_color = vec3(0.0);
+        bool group_has_objects = false;
+        bool is_first_in_group = true;
+
+        for (int i = 0; i < object_count; i++) {
+            int obj_group = int(objects[i].color_extra.w);
+            if (obj_group != g) continue;
+
+            group_has_objects = true;
+            vec3 p_local = getLocalSpace(p, objects[i]);
+            int type = int(objects[i].pos_type.w);
+            int op = int(objects[i].rot_op.w);
+            
+            float d = evaluateSDF(type, p_local, objects[i]);
+            
+            if (is_first_in_group || op == 0) { // UNION
+                if (is_first_in_group || d < group_dist) {
+                    group_dist = d;
+                    group_color = objects[i].color_extra.rgb;
+                }
+                is_first_in_group = false;
+            } else if (op == 1) { // SUBTRACTION
+                if (-d > group_dist) {
+                    group_dist = -d;
+                    group_color = objects[i].color_extra.rgb; 
+                }
+            } else if (op == 2) { // INTERSECTION
+                if (d > group_dist) {
+                    group_dist = d;
+                    group_color = objects[i].color_extra.rgb;
+                }
             }
-        } else if (op == 1) { // SUBTRACTION
-            if (-d > min_dist) {
-                min_dist = -d;
-                hit_color = objects[i].color_extra.rgb; 
-            }
-        } else if (op == 2) { // INTERSECTION
-            if (d > min_dist) {
-                min_dist = d;
-                hit_color = objects[i].color_extra.rgb;
+        }
+
+        // Combine this completed group with the global world map using simple Union
+        if (group_has_objects) {
+            if (group_dist < global_min_dist) {
+                global_min_dist = group_dist;
+                hit_color = group_color;
             }
         }
     }
-    return min_dist;
+    
+    return global_min_dist;
 }
 
 void main() {

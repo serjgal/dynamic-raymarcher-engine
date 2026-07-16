@@ -18,9 +18,8 @@ typedef struct {
   float pos_type[4]; // x, y, z (Position), w (Shape Type ID)
   float rot_op[4];   // x, y, z (Euler Rotation in radians), w (CSG Op: 0=Union,
                      // 1=Sub, 2=Int)
-  float params[4];   // x, y, z (Main dimensions e.g. Extents/Radii), w (Extra
-                     // param e.g. Roundness/Thickness)
-  float color_extra[4]; // r, g, b (Color), w (Unused/Material ID)
+  float params[4];   // x, y, z (Main dimensions), w (Extra parameters)
+  float color_extra[4]; // r, g, b (Color), w (Group ID for CSG isolation)
 } SceneObject;
 
 /*
