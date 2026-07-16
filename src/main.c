@@ -27,7 +27,6 @@ void cross(float a[3], float b[3], float res[3]) {
   res[2] = a[0] * b[1] - a[1] * b[0];
 }
 
-// --- File and Shader Helpers ---
 char *read_file(const char *filepath) {
   FILE *file = fopen(filepath, "rb");
   if (!file)
@@ -46,7 +45,6 @@ GLuint compile_shader(GLenum type, const char *source) {
   GLuint shader = glCreateShader(type);
   glShaderSource(shader, 1, &source, NULL);
   glCompileShader(shader);
-
   int success;
   glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
   if (!success) {
@@ -58,17 +56,14 @@ GLuint compile_shader(GLenum type, const char *source) {
 }
 
 int main(void) {
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
+  if (!SDL_Init(SDL_INIT_VIDEO))
     return -1;
-  }
-
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-  SDL_Window *window =
-      SDL_CreateWindow("Dynamic Raymarcher", 1280, 720, SDL_WINDOW_OPENGL);
+  SDL_Window *window = SDL_CreateWindow("Dynamic Raymarcher - Lighting Edition",
+                                        1280, 720, SDL_WINDOW_OPENGL);
   SDL_GLContext context = SDL_GL_CreateContext(window);
 
   char *vert_src = read_file("shaders/raymarch.vert");
@@ -76,7 +71,6 @@ int main(void) {
 
   GLuint vertexShader = compile_shader(GL_VERTEX_SHADER, vert_src);
   GLuint fragmentShader = compile_shader(GL_FRAGMENT_SHADER, frag_src);
-
   GLuint shaderProgram = glCreateProgram();
   glAttachShader(shaderProgram, vertexShader);
   glAttachShader(shaderProgram, fragmentShader);
@@ -85,65 +79,84 @@ int main(void) {
   WorldData world = {0};
 
   // --- Construct Initial Scene ---
+  // Demonstrating Light Group Isolation and Fine Art/High-Contrast Lighting
 
-  // Object 0: Floor Plane (Group 0)
+  // Object 0: Floor Plane (Muted slate, Light Group 1)
   world.objects[0].pos_type[0] = 0.0f;
   world.objects[0].pos_type[1] = -1.0f;
   world.objects[0].pos_type[2] = 0.0f;
-  world.objects[0].pos_type[3] = 8.0f; // Plane Type
-  world.objects[0].rot_op[3] = 0.0f;   // Union
-  world.objects[0].color_extra[0] = 0.2f;
-  world.objects[0].color_extra[1] = 0.8f;
+  world.objects[0].pos_type[3] = 8.0f;
+  world.objects[0].rot_op[3] = 0.0f; // Union CSG
+  world.objects[0].color_extra[0] = 0.15f;
+  world.objects[0].color_extra[1] = 0.15f;
   world.objects[0].color_extra[2] = 0.2f;
-  world.objects[0].color_extra[3] = 0.0f; // GROUP 0
+  world.objects[0].color_extra[3] = 0.0f; // CSG Group 0
+  world.objects[0].light_data[0] = 0.0f;  // Not a light
+  world.objects[0].light_data[1] = 1.0f;  // Belongs to Light Group 1
 
-  // Object 1: Rotated Box (Group 1)
-  world.objects[1].pos_type[0] = 0.0f;
+  // Object 1: Sphere (Muted navy blue, Light Group 1)
+  world.objects[1].pos_type[0] = -2.0f;
   world.objects[1].pos_type[1] = 1.0f;
-  world.objects[1].pos_type[2] = 5.0f;
-  world.objects[1].pos_type[3] = 2.0f; // Round Box Type
-  world.objects[1].rot_op[0] = 0.5f;   // Pitch
-  world.objects[1].rot_op[1] = 0.5f;   // Yaw
-  world.objects[1].rot_op[3] = 0.0f;   // Union
-  world.objects[1].params[0] = 1.5f;
-  world.objects[1].params[1] = 1.5f;
-  world.objects[1].params[2] = 1.5f; // Extents
-  world.objects[1].params[3] = 0.2f; // Roundness
-  world.objects[1].color_extra[0] = 0.8f;
-  world.objects[1].color_extra[1] = 0.2f;
-  world.objects[1].color_extra[2] = 0.2f;
-  world.objects[1].color_extra[3] = 1.0f; // GROUP 1
+  world.objects[1].pos_type[2] = 3.0f;
+  world.objects[1].pos_type[3] = 0.0f;
+  world.objects[1].rot_op[3] = 0.0f; // Union CSG
+  world.objects[1].params[0] = 1.5f; // Radius
+  world.objects[1].color_extra[0] = 0.2f;
+  world.objects[1].color_extra[1] = 0.3f;
+  world.objects[1].color_extra[2] = 0.4f;
+  world.objects[1].color_extra[3] = 0.0f;
+  world.objects[1].light_data[0] = 0.0f; // Not a light
+  world.objects[1].light_data[1] = 1.0f; // Belongs to Light Group 1
 
-  // Object 2: Subtracted Sphere (Group 1)
-  // Cuts into the Box (since both are in Group 1)
-  world.objects[2].pos_type[0] = 1.0f;
-  world.objects[2].pos_type[1] = 2.0f;
-  world.objects[2].pos_type[2] = 4.0f;
-  world.objects[2].pos_type[3] = 0.0f; // Sphere Type
-  world.objects[2].rot_op[3] = 1.0f;   // SUBTRACT Operation
-  world.objects[2].params[0] = 1.8f;   // Radius
-  world.objects[2].color_extra[0] = 0.2f;
-  world.objects[2].color_extra[1] = 0.2f;
-  world.objects[2].color_extra[2] = 0.8f;
-  world.objects[2].color_extra[3] = 1.0f; // GROUP 1
+  // Object 2: Point Light (Warm high-contrast ochre, affects Light Group 1)
+  world.objects[2].pos_type[0] = -4.0f;
+  world.objects[2].pos_type[1] = 4.0f;
+  world.objects[2].pos_type[2] = 1.0f;
+  world.objects[2].pos_type[3] = 0.0f; // Rendered as small sphere
+  world.objects[2].rot_op[3] = 0.0f;
+  world.objects[2].params[0] = 0.2f; // Small radius
+  world.objects[2].color_extra[0] = 0.0f;
+  world.objects[2].color_extra[1] = 0.6f;
+  world.objects[2].color_extra[2] = 0.2f;
+  world.objects[2].color_extra[3] = 0.0f;
+  world.objects[2].light_data[0] = 1.0f;  // IS A LIGHT
+  world.objects[2].light_data[1] = 1.0f;  // Casts onto Light Group 1
+  world.objects[2].light_data[2] = 35.0f; // High Intensity
 
-  // Object 3: Torus (Group 2)
-  // Floating cleanly right through the Box, totally unaffected by Group 1's
-  // subtraction!
-  world.objects[3].pos_type[0] = 0.0f;
+  // Object 3: Box (Muted grey, Light Group 2) - Isolated from the warm light!
+  world.objects[3].pos_type[0] = 3.0f;
   world.objects[3].pos_type[1] = 1.0f;
-  world.objects[3].pos_type[2] = 5.0f;
-  world.objects[3].pos_type[3] = 3.0f; // Torus Type
-  world.objects[3].rot_op[0] = 1.5f;   // Pitch
-  world.objects[3].rot_op[3] = 0.0f;   // Union
-  world.objects[3].params[0] = 2.0f;   // Main Radius
-  world.objects[3].params[1] = 0.2f;   // Tube Radius
-  world.objects[3].color_extra[0] = 0.8f;
-  world.objects[3].color_extra[1] = 0.8f;
-  world.objects[3].color_extra[2] = 0.2f;
-  world.objects[3].color_extra[3] = 2.0f; // GROUP 2
+  world.objects[3].pos_type[2] = 4.0f;
+  world.objects[3].pos_type[3] = 1.0f;
+  world.objects[3].rot_op[0] = 0.5f;
+  world.objects[3].rot_op[1] = 0.5f;
+  world.objects[3].rot_op[3] = 0.0f;
+  world.objects[3].params[0] = 1.0f;
+  world.objects[3].params[1] = 1.0f;
+  world.objects[3].params[2] = 1.0f;
+  world.objects[3].color_extra[0] = 0.4f;
+  world.objects[3].color_extra[1] = 0.4f;
+  world.objects[3].color_extra[2] = 0.45f;
+  world.objects[3].color_extra[3] = 0.0f;
+  world.objects[3].light_data[0] = 0.0f; // Not a light
+  world.objects[3].light_data[1] = 2.0f; // Belongs to Light Group 2
 
-  world.object_count = 4;
+  // Object 4: Point Light (Cold blue, affects Light Group 2)
+  world.objects[4].pos_type[0] = 4.0f;
+  world.objects[4].pos_type[1] = 3.0f;
+  world.objects[4].pos_type[2] = 2.0f;
+  world.objects[4].pos_type[3] = 0.0f;
+  world.objects[4].rot_op[3] = 0.0f;
+  world.objects[4].params[0] = 0.2f;
+  world.objects[4].color_extra[0] = 0.2f;
+  world.objects[4].color_extra[1] = 0.4f;
+  world.objects[4].color_extra[2] = 1.0f;
+  world.objects[4].color_extra[3] = 0.0f;
+  world.objects[4].light_data[0] = 1.0f;  // IS A LIGHT
+  world.objects[4].light_data[1] = 2.0f;  // Casts onto Light Group 2
+  world.objects[4].light_data[2] = 15.0f; // Intensity
+
+  world.object_count = 5;
 
   GLuint ubo;
   glGenBuffers(1, &ubo);
@@ -161,7 +174,6 @@ int main(void) {
   glGenVertexArrays(1, &vao);
   glBindVertexArray(vao);
 
-  // --- Camera State ---
   float cam_pos[3] = {0.0f, 1.0f, 0.0f};
   float cam_front[3] = {0.0f, 0.0f, 1.0f};
   float cam_up[3] = {0.0f, 1.0f, 0.0f};
@@ -187,25 +199,22 @@ int main(void) {
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_EVENT_QUIT)
         running = false;
-
-      if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE) {
+      if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)
         running = false;
-      }
 
+      // Random Spawner
       if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_SPACE) {
         if (world.object_count < 100) {
           int i = world.object_count;
-
           world.objects[i].pos_type[0] = ((rand() % 100) / 10.0f) - 5.0f;
           world.objects[i].pos_type[1] = ((rand() % 50) / 10.0f);
           world.objects[i].pos_type[2] = 3.0f + ((rand() % 50) / 10.0f);
-          world.objects[i].pos_type[3] = rand() % 15; // Random Shape
+          world.objects[i].pos_type[3] = rand() % 15;
 
           world.objects[i].rot_op[0] = (rand() % 314) / 100.0f;
           world.objects[i].rot_op[1] = (rand() % 314) / 100.0f;
           world.objects[i].rot_op[2] = (rand() % 314) / 100.0f;
-          world.objects[i].rot_op[3] =
-              (rand() % 10) > 8 ? 1.0f : 0.0f; // Subtraction chance
+          world.objects[i].rot_op[3] = (rand() % 10) > 8 ? 1.0f : 0.0f;
 
           world.objects[i].params[0] = 0.5f + ((rand() % 20) / 10.0f);
           world.objects[i].params[1] = 0.5f + ((rand() % 20) / 10.0f);
@@ -215,11 +224,21 @@ int main(void) {
           world.objects[i].color_extra[0] = (rand() % 100) / 100.0f;
           world.objects[i].color_extra[1] = (rand() % 100) / 100.0f;
           world.objects[i].color_extra[2] = (rand() % 100) / 100.0f;
-          world.objects[i].color_extra[3] =
-              (float)(rand() % 3 + 1); // Spawns in Groups 1, 2, or 3
+          world.objects[i].color_extra[3] = (float)(rand() % 3);
+
+          // 15% chance this spawned object acts as a light source
+          bool is_light = (rand() % 100) > 85;
+          world.objects[i].light_data[0] = is_light ? 1.0f : 0.0f;
+          world.objects[i].light_data[1] =
+              (float)(rand() % 2 + 1); // Randomly joins Light Group 1 or 2
+          world.objects[i].light_data[2] =
+              10.0f + ((rand() % 200) / 10.0f); // Random Intensity
+
+          if (is_light)
+            world.objects[i].params[0] =
+                0.2f; // Make light geometry physically small
 
           world.object_count++;
-
           glBindBuffer(GL_UNIFORM_BUFFER, ubo);
           glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(WorldData), &world);
         }
@@ -237,21 +256,17 @@ int main(void) {
 
     float rad_yaw = yaw * M_PI / 180.0f;
     float rad_pitch = pitch * M_PI / 180.0f;
-
     cam_front[0] = cosf(rad_yaw) * cosf(rad_pitch);
     cam_front[1] = sinf(rad_pitch);
     cam_front[2] = sinf(rad_yaw) * cosf(rad_pitch);
     normalize(cam_front);
-
     cross(cam_front, world_up, cam_right);
     normalize(cam_right);
-
     cross(cam_right, cam_front, cam_up);
     normalize(cam_up);
 
     const bool *state = SDL_GetKeyboardState(NULL);
     float velocity = cam_speed * dt;
-
     if (state[SDL_SCANCODE_W]) {
       cam_pos[0] += cam_front[0] * velocity;
       cam_pos[1] += cam_front[1] * velocity;

@@ -11,15 +11,16 @@
 
 /*
  * SceneObject perfectly matches the GLSL std140 layout.
- * Expanded to 64 bytes (4 vec4s) to support complex shapes,
- * arbitrary rotations, and CSG boolean operations.
+ * Expanded to 80 bytes (5 vec4s) to support modular lighting and light groups.
  */
 typedef struct {
   float pos_type[4]; // x, y, z (Position), w (Shape Type ID)
   float rot_op[4];   // x, y, z (Euler Rotation in radians), w (CSG Op: 0=Union,
                      // 1=Sub, 2=Int)
   float params[4];   // x, y, z (Main dimensions), w (Extra parameters)
-  float color_extra[4]; // r, g, b (Color), w (Group ID for CSG isolation)
+  float color_extra[4]; // r, g, b (Color), w (CSG Group ID)
+  float light_data[4];  // x (0.0=Geometry, 1.0=Light), y (Light Group ID), z
+                        // (Intensity), w (Unused)
 } SceneObject;
 
 /*
@@ -28,7 +29,7 @@ typedef struct {
  */
 typedef struct {
   int object_count;
-  int pad[3]; // Align to 16 bytes for strict std140 rules
+  int pad[3];
   SceneObject objects[100];
 } WorldData;
 
